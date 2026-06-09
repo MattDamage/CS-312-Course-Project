@@ -71,12 +71,12 @@ resource "aws_security_group" "minecraft_sg" {
 # Citation for the following function:
 # Date: 6/9/2026
 # Adapted from:
-# Source URL: https://developer.hashicorp.com/terraform/tutorials/docker-get-started/docker-build
+# Source URL: https://docker-minecraft-server.readthedocs.io/en/latest/#using-docker-compose
 
 
 # Create an EC2 instance, medium was used since for project part 1 I found out that other versions really didn't cut it, minecraft is rather RAM hungry.
 resource "aws_instance" "p2-minecraft_server" {
-  ami                    = "ami-0c7217cdde317cfec"  # Ubuntu 22.04 us-east-1
+  ami                    = "ami-0c7217cdde317cfec"
   instance_type          = "t2.medium"
   key_name               = aws_key_pair.minecraft_key.key_name
   vpc_security_group_ids = [aws_security_group.minecraft_sg.id]
@@ -88,33 +88,26 @@ resource "aws_instance" "p2-minecraft_server" {
     host        = self.public_ip
   }
 
-# Date: 6/9/2026
-# Adapted from:
-# Source URL: https://docker-minecraft-server.readthedocs.io/en/latest/#using-docker-compose
+  provisioner "file" {
+    source      = "docker-compose.yml"
+    destination = "/home/ubuntu/docker-compose.yml"
+  }
 
-# Install Docker and start Minecraft
   provisioner "remote-exec" {
     inline = [
       "sudo apt-get update -y",
-      "sudo apt-get install -y docker.io docker-compose",
+      "sudo apt-get install -y ca-certificates curl gnupg",
+      "sudo install -m 0755 -d /etc/apt/keyrings",
+      "curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg",
+      "sudo chmod a+r /etc/apt/keyrings/docker.gpg",
+      "echo \"deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo $VERSION_CODENAME) stable\" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null",
+      "sudo apt-get update -y",
+      "sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin",
       "sudo systemctl enable docker",
       "sudo systemctl start docker",
       "mkdir -p /home/ubuntu/minecraft",
-      "cat > /home/ubuntu/minecraft/docker-compose.yml << 'EOF'",
-      "version: '3'",
-      "services:",
-      "  minecraft:",
-      "    image: itzg/minecraft-server",
-      "    ports:",
-      "      - '25565:25565'",
-      "    environment:",
-      "      EULA: 'TRUE'",
-      "      MEMORY: '2G'",
-      "    volumes:",
-      "      - ./data:/data",
-      "    restart: always",
-      "EOF",
-      "cd /home/ubuntu/minecraft && sudo docker-compose up -d"
+      "mv /home/ubuntu/docker-compose.yml /home/ubuntu/minecraft/docker-compose.yml",
+      "cd /home/ubuntu/minecraft && sudo docker compose up -d"
     ]
   }
 
